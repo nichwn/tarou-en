@@ -7,7 +7,9 @@ import { loadGlossary, validate } from './lib/glossary'
 import { computeDelta, translateStrings } from './translate-delta'
 import { assertBudget, scanResidualCjk } from './verify'
 
-const exec = promisify(execFile)
+// execFile with an argument array: no shell, so upstream strings can never be
+// interpreted as shell syntax. Named to keep that obvious to readers.
+const execFileAsync = promisify(execFile)
 
 export interface ChangelogEntry { date: string, version: string, comment: string }
 
@@ -21,12 +23,12 @@ export interface SyncResult {
 }
 
 async function git(...args: string[]): Promise<string> {
-  const { stdout } = await exec('git', args, { cwd: process.cwd() })
+  const { stdout } = await execFileAsync('git', args, { cwd: process.cwd() })
   return stdout.trim()
 }
 
-async function run(cmd: string, args: string[]): Promise<void> {
-  await exec(cmd, args, { cwd: process.cwd(), maxBuffer: 40 * 1024 * 1024 })
+async function run(cmd: string, args: string[], cwd = process.cwd()): Promise<void> {
+  await execFileAsync(cmd, args, { cwd, maxBuffer: 40 * 1024 * 1024 })
 }
 
 export function renderChangelogMd(
@@ -98,6 +100,10 @@ export async function sync(opts: { dryRun?: boolean } = {}): Promise<SyncResult>
     const problems = validate({ ...glossary, entries })
     if (problems.length)
       throw new Error(`Glossary validation failed:\n${problems.join('\n')}`)
+
+    // Our own suite first: the denylist-integrity guard catches upstream adding a
+    // skill whose `comment` is compared against game data, which nothing else sees.
+    await run('pnpm', ['vitest', 'run'], `${process.cwd()}/tools`)
 
     await run('pnpm', ['install'])
     await run('pnpm', ['exec', 'rimraf', '--glob', 'dist'])

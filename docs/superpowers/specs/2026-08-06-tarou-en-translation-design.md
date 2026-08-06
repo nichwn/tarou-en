@@ -177,6 +177,41 @@ replaced only after every gate passes.
 presence and buildability. The first run after a large upstream feature warrants a
 manual look.
 
+## Corrections found during implementation
+
+Four assumptions in this spec turned out to be wrong. Recorded rather than quietly
+patched, because each one would mislead a future reader.
+
+1. **gbf.wiki is not reachable from Node at all.** The spec said a `Mozilla/5.0
+   (compatible)` User-Agent is sufficient. That is true for `curl`, which is how it
+   was verified — but Cloudflare challenges Node's `fetch` on its **TLS fingerprint**,
+   and four header variants (bare, plain UA, plus-Accept, and a full Chrome set with
+   `sec-ch-ua`/`Sec-Fetch-*`) all returned 403 with the "Just a moment..."
+   interstitial. `build-terminology.ts` therefore shells out to `curl` via `execFile`.
+   Any future task fetching gbf.wiki from Node hits the same wall.
+
+2. **The template-text regex missed most of the UI.** A per-line `>text<` match
+   cannot see a label that upstream's formatter puts on its own line, and rejecting
+   any line containing `{}` discarded every string interleaved with `{{ }}`
+   interpolation. That silently hid **101 unique strings** — essentially the entire
+   side-panel button set (重置, 筛选, 确认…) and all dashboard event headers. Replaced
+   by `lib/template-text.ts`, which scans the whole `<template>` block and splits
+   around interpolations. Extraction went from 533 to 612 unique strings.
+
+3. **The denylist was seeded far too narrowly.** The 30 `comment:` values in
+   `src/constants/skill.ts` are compared against live game data via
+   `String.includes` in `Weapon.vue:24` — translating them makes the weapon grid's
+   skill tags vanish with no error. This class is undetectable by grep: the literal
+   lives in a constants table and the comparison is variable-vs-variable at a distant
+   call site. The denylist now holds 66 entries, and
+   `test/denylist-integrity.test.ts` re-derives them from source on every sync, since
+   upstream adds skills over time.
+
+4. **A CDP smoke load is not part of the shipping gates.** The spec listed it; it
+   needs a logged-in Chrome profile and a live game session, so it cannot run
+   unattended. The gates are the tools test suite, the production build, `vue-tsc`,
+   and the residual-CJK budget.
+
 ## Out of scope
 
 - Upstreaming the i18n refactor (possible follow-up, not this work).
