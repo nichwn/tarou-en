@@ -2,6 +2,7 @@ import type { Glossary } from './lib/glossary'
 import { hasCjk } from './lib/cjk'
 import { lookup } from './lib/glossary'
 import { replaceTemplateTexts } from './lib/template-text'
+import { innerLiterals, looksLikeCode } from './lib/translatable'
 
 const LITERAL_RE = /(['"`])((?:\\.|(?!\1)[^\\\n])*)\1/g
 
@@ -18,6 +19,32 @@ export function translateSource(
   const misses: string[] = []
 
   let code = source.replace(LITERAL_RE, (whole, quote: string, body: string) => {
+    // A code-like literal may wrap display text one level down, e.g. an attribute
+    // holding a template literal. Recurse once rather than skipping it wholesale.
+    if (looksLikeCode(body)) {
+      let rewritten = body
+      let innerHits = 0
+
+      for (const inner of innerLiterals(body)) {
+        const innerEn = lookup(g, inner.text)
+        // Bail if the replacement would collide with the outer quote and need
+        // escaping we cannot safely apply at this nesting depth.
+        if (innerEn === undefined || innerEn.includes(quote))
+          continue
+        rewritten = rewritten.replace(
+          `${inner.quote}${inner.text}${inner.quote}`,
+          `${inner.quote}${escapeForQuote(innerEn, inner.quote)}${inner.quote}`,
+        )
+        innerHits++
+      }
+
+      if (innerHits > 0) {
+        hits += innerHits
+        return `${quote}${rewritten}${quote}`
+      }
+      return whole
+    }
+
     const en = lookup(g, body)
     if (en !== undefined) {
       hits++

@@ -207,7 +207,23 @@ patched, because each one would mislead a future reader.
    `test/denylist-integrity.test.ts` re-derives them from source on every sync, since
    upstream adds skills over time.
 
-4. **A CDP smoke load is not part of the shipping gates.** The spec listed it; it
+4. **Element Plus ships its own Chinese locale, which the glossary cannot reach.**
+   The component library defaults to `zh-cn`, and those strings live in
+   `node_modules` as `.mjs` — not a file the transform sees. The date picker,
+   pagination, colour picker and every aria-label rendered Chinese in a fully
+   translated build (`面包屑`, `颜色选择器`, `透明度`). Fixed by aliasing
+   `element-plus/es/locale/lang/zh-cn` to the `en` locale in `vite.config.en.mts`,
+   which stays zero-diff; configuring the locale properly would mean editing
+   upstream's app entry. Residual CJK fell 3784 → 3288.
+
+5. **Nested literals need one level of recursion.** A Vue attribute may wrap a
+   template literal — `:title="\`特殊事件 ${id}\`"` — and scanning for quoted strings
+   matches the outer attribute value first, consuming the inner one. Five display
+   strings were unreachable this way. Both the extractor and the plugin now recurse
+   exactly once into a code-like literal, skipping any replacement whose English
+   would collide with the outer quote.
+
+6. **A CDP smoke load is not part of the shipping gates.** The spec listed it; it
    needs a logged-in Chrome profile and a live game session, so it cannot run
    unattended. The gates are the tools test suite, the production build, `vue-tsc`,
    and the residual-CJK budget.

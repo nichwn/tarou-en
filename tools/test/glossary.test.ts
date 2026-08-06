@@ -42,6 +42,21 @@ describe('validate', () => {
     expect(validate(bad)[0]).toContain('CJK')
   })
 
+  it('reports a translation that dropped an interpolation', () => {
+    const bad = { ...g, entries: { '第${n}回合': 'Turn' } }
+    expect(validate(bad)[0]).toContain('placeholder')
+  })
+
+  it('reports a translation that invented an interpolation', () => {
+    const bad = { ...g, entries: { 总计: 'Total ${n}' } }
+    expect(validate(bad)[0]).toContain('placeholder')
+  })
+
+  it('accepts translating a display fallback inside an interpolation', () => {
+    const ok = { ...g, entries: { "概率(${x || '未获取'})": "Rates (${x || 'Not Obtained'})" } }
+    expect(validate(ok)).toEqual([])
+  })
+
   it('reports an empty translation', () => {
     const bad = { ...g, entries: { 总计: '' } }
     expect(validate(bad)[0]).toContain('empty')

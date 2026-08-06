@@ -1,6 +1,6 @@
 import { loadGlossary } from './tools/src/lib/glossary'
 import { translatePlugin } from './tools/src/vite-plugin-translate'
-import base from './vite.config.content.mts'
+import base from './vite.config.content.mjs'
 
 const glossary = await loadGlossary('./i18n')
 

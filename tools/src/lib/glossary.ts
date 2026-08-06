@@ -25,6 +25,19 @@ export function lookup(g: Glossary, text: string): string | undefined {
   return g.entries[text] ?? g.overrides[text]
 }
 
+/**
+ * How many `${...}` interpolations a string carries. Template literals are captured
+ * whole, so a translation that drops or invents one changes what the built code
+ * renders — and an unbalanced one is a syntax error in the bundle.
+ *
+ * Counted rather than compared verbatim: translating a display fallback *inside* an
+ * interpolation, as in `${x?.id || '未获取'}` -> `${x?.id || 'Not Obtained'}`, is
+ * correct and must not be flagged.
+ */
+function placeholderCount(s: string): number {
+  return (s.match(/\$\{/g) ?? []).length
+}
+
 export function validate(g: Glossary): string[] {
   const problems: string[] = []
 
@@ -35,6 +48,11 @@ export function validate(g: Glossary): string[] {
       problems.push(`"${zh}" has an empty translation`)
     else if (hasCjk(en))
       problems.push(`"${zh}" translates to "${en}" which still contains CJK`)
+
+    const before = placeholderCount(zh)
+    const after = placeholderCount(en)
+    if (before !== after)
+      problems.push(`"${zh}" has ${before} \${} placeholder(s) but "${en}" has ${after}`)
   }
 
   return problems

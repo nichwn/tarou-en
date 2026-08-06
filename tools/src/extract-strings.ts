@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises'
 import { join, relative } from 'node:path'
 import { hasCjk } from './lib/cjk'
 import { extractTemplateTexts } from './lib/template-text'
+import { innerLiterals, looksLikeCode } from './lib/translatable'
 
 export interface ExtractedString {
   text: string
@@ -29,8 +30,20 @@ export function extractLiterals(source: string, filename: string): ExtractedStri
   source.split('\n').forEach((line, i) => {
     for (const m of line.matchAll(LITERAL_RE)) {
       const text = m[2]
-      if (hasCjk(text))
-        out.push({ text, file: filename, line: i + 1, kind: 'literal' })
+      if (!hasCjk(text))
+        continue
+
+      if (looksLikeCode(text)) {
+        // Recurse one level: an attribute may wrap a template literal whose text is
+        // otherwise consumed by the outer match.
+        for (const inner of innerLiterals(text)) {
+          if (hasCjk(inner.text) && !looksLikeCode(inner.text))
+            out.push({ text: inner.text, file: filename, line: i + 1, kind: 'literal' })
+        }
+        continue
+      }
+
+      out.push({ text, file: filename, line: i + 1, kind: 'literal' })
     }
   })
 
