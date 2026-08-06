@@ -1,0 +1,15 @@
+{
+  "name": "tarou-en-tools",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "devDependencies": {
+    "@types/node": "^25.6.0",
+    "fast-glob": "^3.3.3",
+    "typescript": "^6.0.3",
+    "vitest": "^3.2.4"
+  }
+}
