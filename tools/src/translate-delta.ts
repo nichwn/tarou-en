@@ -14,15 +14,33 @@ export function computeDelta(
   return { added, removed }
 }
 
+/**
+ * The subset of a `from -> to` table worth spending prompt budget on: entries whose
+ * key actually occurs in something we are translating.
+ */
+function relevantPairs(
+  pairs: Record<string, string>,
+  strings: string[],
+  limit: number,
+): string {
+  return Object.entries(pairs)
+    .filter(([from]) => strings.some(s => s.includes(from)))
+    .slice(0, limit)
+    .map(([from, to]) => `  ${from} = ${to}`)
+    .join('\n')
+}
+
 export function buildPrompt(
   strings: string[],
   terminology: Record<string, string>,
+  glossary: Record<string, string> = {},
 ): string {
-  const relevant = Object.entries(terminology)
-    .filter(([jp]) => strings.some(s => s.includes(jp)))
-    .slice(0, 200)
-    .map(([jp, en]) => `  ${jp} = ${en}`)
-    .join('\n')
+  // Two tables, two languages. `terminology` is JP->EN from gbf.wiki and only fires
+  // on the rare Chinese label that embeds a Japanese term; `glossary` is our own
+  // vetted ZH->EN and is what actually matches. Passing only the former leaves the
+  // model to invent terminology — see the regression note in translate-delta.test.ts.
+  const relevant = relevantPairs(terminology, strings, 200)
+  const vetted = relevantPairs(glossary, strings, 200)
 
   return [
     'You are translating the UI of a Granblue Fantasy browser extension from Chinese to English.',
@@ -36,6 +54,7 @@ export function buildPrompt(
     '- Do not translate proper nouns that are already Latin script.',
     '',
     relevant ? `Canonical Japanese to English terms:\n${relevant}\n` : '',
+    vetted ? `Existing translations from this extension — match their wording and style:\n${vetted}\n` : '',
     'Translate each of the following. Reply with ONLY a JSON object mapping each input',
     'string to its English translation, no commentary.',
     '',
@@ -76,12 +95,13 @@ const BATCH = 60
 export async function translateStrings(
   strings: string[],
   terminology: Record<string, string>,
+  glossary: Record<string, string> = {},
 ): Promise<Record<string, string>> {
   const out: Record<string, string> = {}
 
   for (let i = 0; i < strings.length; i += BATCH) {
     const batch = strings.slice(i, i + BATCH)
-    const { stdout } = await exec('claude', ['-p', buildPrompt(batch, terminology)], {
+    const { stdout } = await exec('claude', ['-p', buildPrompt(batch, terminology, glossary)], {
       maxBuffer: 20 * 1024 * 1024,
     })
     Object.assign(out, parseTranslations(stdout, batch))

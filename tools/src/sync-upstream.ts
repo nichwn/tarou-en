@@ -59,9 +59,10 @@ export function renderChangelogMd(
 export async function translateChangelog(
   entries: ChangelogEntry[],
   terminology: Record<string, string>,
+  glossary: Record<string, string> = {},
 ): Promise<ChangelogEntry[]> {
   const comments = entries.map(e => e.comment)
-  const translated = await translateStrings(comments, terminology)
+  const translated = await translateStrings(comments, terminology, glossary)
   return entries.map(e => ({ ...e, comment: translated[e.comment] ?? e.comment }))
 }
 
@@ -92,7 +93,7 @@ export async function sync(opts: { dryRun?: boolean } = {}): Promise<SyncResult>
 
     let entries = glossary.entries
     if (added.length) {
-      const translated = await translateStrings(added, terminology)
+      const translated = await translateStrings(added, terminology, glossary.entries)
       entries = { ...entries, ...translated }
       await writeFile('i18n/glossary.en.json', `${JSON.stringify(entries, null, 2)}\n`)
     }
@@ -120,7 +121,7 @@ export async function sync(opts: { dryRun?: boolean } = {}): Promise<SyncResult>
     const untranslated = added.filter(s => !(s in entries))
 
     const upstreamLog: ChangelogEntry[] = JSON.parse(await readFile('changelog.json', 'utf-8'))
-    const [latest] = await translateChangelog(upstreamLog.slice(0, 1), terminology)
+    const [latest] = await translateChangelog(upstreamLog.slice(0, 1), terminology, entries)
     const existing: ChangelogEntry[] = JSON.parse(
       await readFile('changelog.en.json', 'utf-8').catch(() => '[]'),
     )
